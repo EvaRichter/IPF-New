@@ -1,0 +1,5 @@
+> module IntervalLists where
+> import IntervalType
+> import Numeric.IEEE
+> import RoundedArithmetic
+> import Data.List
