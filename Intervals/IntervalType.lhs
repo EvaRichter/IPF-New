@@ -23,11 +23,11 @@
 > givebs :: Interval -> (Double, Double)
 > givebs (IV a b) = (a,b)
 >
-> num2Int :: Double -> Double -> Interval
-> num2Int a b = IV a b
+> num2Interval :: Double -> Double -> Interval
+> num2Interval a b = IV a b
 >
-> double2Int :: Double -> Interval
-> double2Int x = num2Int x x
+> double2Interval :: Double -> Interval
+> double2Interval x = num2Interval x x
 >
 
 

@@ -7,7 +7,8 @@
 > import System.IO
 > import IPFInputOutput
 > import Examples
-> 
+> import GHC.Float
+
 > import Intervals.IntervalType
 > import Intervals.IntervalArithmetic
 > import Intervals.IntervalOps
@@ -15,8 +16,8 @@
 > 
 > 
 > numIt = 10 -- number of iterations
-> numTestMx = 12
-> numTestMg = 13
+> numTestMx = 10
+> numTestMg = 10
 > dimensions = [(2,2),(2,5),(2,10),(5,5),(5,10),(10,10)]
 >
 
@@ -45,14 +46,17 @@
 >                  putStrLn (show x)
 >                  return()
 > 
-
+> {- gets dimensions and a number for a matrix and a pair of marginals, reads the files from IPFTestInput/[n]by[m]/[matricies/marginals]/[i/j].txt,
+>    performs IPF on them after converting the numbers to intervals. Then writes the result with all steps in a file to 
+>    IPFTestResults/[n]by[m]/Matrix[i]Marginals[j].txt
+>  -}
 >
 > readWriteIPF :: (Int,Int) -> Int -> Int -> IO()
 > readWriteIPF (n,m) i j = do mx <- readFile $ "IPFTestInput/" ++ show(n) ++ "by" ++ show(m) ++ "/matricies/" ++
 >                                                       show(i) ++ ".txt"
 >                             mg <- readFile $ "IPFTestInput/" ++ show(n) ++ "by" ++ show(m) ++ "/marginals/" ++
 >                                                       show(j) ++ ".txt"
->                             writeIPF path (readDoubleMatrix mx) (readDoubleMarginals mg)
+>                             writeIPF path (readDoubleMatrixToInterval mx) (readDoubleMarginalsToInterval mg)
 >                               where path = "IPFTestResults/" ++
 >                                             show(n) ++ "by" ++ show(m) ++ "/Matrix" ++ show(i) ++
 >                                            "Marginals" ++ show(j) ++ ".txt"
@@ -64,6 +68,11 @@
 >
 > readDoubleMarginals :: String -> ([Double],[Double])
 > readDoubleMarginals = readMarginals
+>
+> readDoubleMarginalsToInterval :: String -> ([Interval],[Interval])
+> readDoubleMarginalsToInterval s = (map double2Interval mcol, map double2Interval mrow)
+>                                     where (mcol, mrow) = readDoubleMarginals s
+>
 
 > readMatrix :: (Read a, Signed a, Eq a, Num a, Show a, Fractional a) => String -> (Array (Int,Int) a)
 > readMatrix = twoDimListToArray.read
@@ -71,6 +80,10 @@
 > readDoubleMatrix :: String -> (Array (Int,Int) Double)
 > readDoubleMatrix = readMatrix
 >
+> readDoubleMatrixToInterval :: String -> (Array (Int, Int) Interval)
+> readDoubleMatrixToInterval = (fmap double2Interval).readMatrix
+>
+
 
 > twoDimListToArray :: [[a]] -> (Array (Int,Int) a)
 > twoDimListToArray l = array (bounds ) (zip (range bounds) (concat l))
@@ -84,18 +97,32 @@
 >  -}
 >
 >
-> writeIPF :: (Signed a, Eq a, Num a, Show a, Fractional a) =>
+> writeIPF :: (Signed a, Eq a, Num a, Show a, Fractional a, MaybeDoubleCompatible a) =>
 >                    FilePath -> (Array (Int,Int) a) -> ([a],[a]) -> IO ()
 > writeIPF path mx (mcol, mrow)
->              | (uj - lj) /= length mcol || (ui - li) /= length mrow =
->                                  do writeFile path "Marginal lengths do not match array bounds."
->              | sum mcol /= sum mrow =
->                                  do writeFile path "Sums of marginals do not match."
+>              | (uj - lj + 1) /= length mcol || (ui - li + 1) /= length mrow =
+>                                  writeFile path "Marginal lengths do not match array bounds."
+>              | sumsDontMatch (simpleSum mcol) (simpleSum mrow) =
+>                                  do writeFile path "Illegal marginal entries." 
+>                                     putStrLn $ (show (simpleSum mrow)) ++ " "++(show (simpleSum mcol))            
 >              | not (isAllPositive (fuseArr mx mcol mrow))  =
 >                                  do writeFile path "Some marginal or matrix entry is not positive."
 >              | otherwise =
 >                                  do writeFile path (ipfString numIt (fuseArr mx mcol mrow))
 >               where ((li,lj),(ui,uj)) = bounds mx
+>				    
+>                     simpleSum l = foldl maybeplus (Just 0) (map toDouble l)
+> 
+>                     maybeplus Nothing  _        = Nothing
+>                     maybeplus (Just a) Nothing  = Nothing 
+>                     maybeplus (Just a) (Just b) = Just (a + b)						
+> 
+>                     sumsDontMatch Nothing  x        = True
+>                     sumsDontMatch (Just x) Nothing  = True
+>                     sumsDontMatch (Just a) (Just b) = a /= b  
+>                       
+> 
+>                      
 >
 > isAllPositive :: (Signed a, Num a) => (Array (Int,Int) a) -> Bool
 > isAllPositive  mx = foldl (&&) True (map isPositive entries)
@@ -106,6 +133,19 @@
 >
 > -- This is supposed to go in its own file (later)
 > 
+> class MaybeDoubleCompatible a where
+>  toDouble :: a -> Maybe Double
+> 
+> instance MaybeDoubleCompatible Double where
+> 				toDouble f = Just f
+>
+> instance MaybeDoubleCompatible Float where
+>               toDouble f = Just (float2Double f)
+>
+> instance MaybeDoubleCompatible Interval where
+>               toDouble (IV a b) | a==b      = Just a
+>                                 | otherwise = Nothing
+>
 > class Signed a where
 >  isPositive :: a -> Bool
 >  isNegative :: a -> Bool
