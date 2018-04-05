@@ -13,6 +13,11 @@
 > len :: Interval -> Double
 > len z =  rb z - lb z
 >
+>
+> {- gives the value of the center of the interval -}
+> cen :: Interval -> Double
+> cen z = (rb z + lb z)/2
+>
 > {- gives the distance of two intervals-}
 >
 > dist :: Interval -> Interval -> Double
